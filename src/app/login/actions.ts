@@ -52,7 +52,15 @@ export async function signUp(_prev: FormState, fd: FormData): Promise<FormState>
       data: name ? { full_name: name } : undefined,
     },
   });
-  if (error) return { ok: false, message: "No se pudo crear la cuenta. ¿Ya estás registrado?" };
+  if (error) {
+    const messages: Record<string, string> = {
+      user_already_exists: "Ese correo ya tiene cuenta. Entra con tu contraseña.",
+      weak_password: "La contraseña es muy débil. Usa al menos 8 caracteres con letras y números.",
+      email_address_not_authorized: "Aún no podemos enviar correos a esa dirección. Entra con Google o avísale al administrador.",
+      over_email_send_rate_limit: "Se enviaron demasiados correos. Intenta en una hora o entra con Google.",
+    };
+    return { ok: false, message: messages[error.code ?? ""] ?? "No se pudo crear la cuenta. Intenta de nuevo." };
+  }
   if (data.session) redirect("/");
   return { ok: true, message: "¡Listo! Te enviamos un correo para confirmar tu cuenta." };
 }
