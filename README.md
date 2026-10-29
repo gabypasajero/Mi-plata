@@ -1,2 +1,78 @@
-# Mi-plata
-Educación financiera
+# Mi Plata 💸
+
+App web instalable (PWA) de finanzas personales y del hogar: registras lo que ganas y gastas en segundos y la app te dice **cuánto puedes gastar hoy** sin romper tus prioridades. Pensada para Chile: pesos sin decimales, hora de Santiago y comercios chilenos.
+
+Especificación completa: [doc "Mi Plata — Especificación"](https://claude.ai/artifact/8SN7trCGMDUotUiFHBYsJF).
+
+## Estado: Fase 1 — Base ✅
+
+| Pantalla | Qué hace |
+|---|---|
+| **Inicio** | "Puedes gastar hoy", plata por asignar, saldo disponible y deudas, avance del mes, próximos pagos de tarjetas (7 días), últimos movimientos |
+| **+ Agregar** | Registro rápido que entiende `café 2500`, `uber 4.500`, `5 lucas almuerzo` o `+850000 sueldo`, y sugiere la categoría |
+| **Presupuesto** | Sobres en Esencial → Importante → Opcional, reparto automático, mover plata y "cubrir" un sobre en rojo |
+| **Movimientos** | Lista por día con filtros (mes, cuenta, categoría) y buscador; editar y borrar |
+| **Cuentas** | Efectivo, cuenta corriente/vista, tarjetas (cupo, facturación, pago) y deudas; patrimonio neto |
+| **Ajustes** | Hogar, plantilla 50/30/20, invitar a la familia con código, categorías y prioridades |
+
+**Hogar desde el día 1:** todo pertenece a un *hogar*; puedes invitar a tu familia con un código y comparten cuentas y sobres. La seguridad (RLS de Postgres) impide que un hogar vea datos de otro.
+
+### Cómo se calcula
+
+- **Por asignar** = ingresos del mes − lo asignado a sobres.
+- **Reparto automático:** el primer mes usa la plantilla (50/30/20). Después llena Esencial e Importante hasta lo que asignaste el mes anterior, y Opcional recibe lo que queda.
+- **Puedes gastar hoy** = lo disponible en sobres Opcionales ÷ días que quedan del mes (hoy incluido).
+- **Saldo de cada cuenta** = saldo inicial + suma de sus movimientos (se calcula en la base de datos, nunca se desincroniza).
+
+## Puesta en marcha
+
+### 1. Supabase
+> Ya creado: proyecto **mi-plata** (región São Paulo) con todas las migraciones aplicadas. Estos pasos son para recrearlo desde cero.
+
+1. Crea un proyecto en [supabase.com](https://supabase.com) (el plan gratis alcanza).
+2. **SQL Editor** → ejecuta, en orden, los archivos de `supabase/migrations/`.
+   (o con la CLI: `supabase link` y `supabase db push`)
+3. **Authentication → URL Configuration**: *Site URL* = la URL de tu app; en *Redirect URLs* agrega `https://TU-DOMINIO/auth/callback` y `http://localhost:3000/auth/callback`.
+4. *(Opcional)* **Authentication → Providers → Google**: actívalo con tu Client ID de Google Cloud.
+
+### 2. Local
+```bash
+cp .env.example .env.local   # completa URL y publishable key de Supabase
+npm install
+npm run dev                  # http://localhost:3000
+```
+
+### 3. Producción (Vercel)
+Importa el repo en Vercel y agrega las mismas variables de `.env.example` (con `NEXT_PUBLIC_SITE_URL` = tu dominio).
+
+## Calidad
+
+```bash
+npm run typecheck   # TypeScript
+npm run lint        # ESLint
+npm test            # lógica de negocio: pesos, fechas de Chile, registro rápido, reparto, "puedes gastar hoy"
+npm run test:db     # migración + seguridad RLS en un Postgres local desechable
+```
+
+## Estructura
+
+```
+supabase/migrations/   esquema SQL, RLS, alta de usuarios, invitaciones
+supabase/tests/        prueba de seguridad entre hogares
+src/proxy.ts           sesión de Supabase y protección de rutas (Next 16: antes "middleware")
+src/lib/               lógica pura (budget, dates, money, quick-entry) + capa de datos (data.ts)
+src/app/actions.ts     Server Actions con validación
+src/app/(app)/         pantallas privadas
+src/app/login/         entrar, crear cuenta, Google
+```
+
+Stack: Next.js 16 (App Router) · React 19 · Tailwind 4 · Supabase (Postgres + Auth + RLS) · Vitest.
+
+## Próximas fases
+
+1. ~~Base~~ ✅
+2. **IA lectora:** foto de boleta → Claude (visión) → bandeja "Por revisar"; reglas que aprenden por comercio.
+3. **Cartolas:** PDF de tarjeta y CSV/Excel del banco, cuotas, anti-duplicados. Incluye **transferencias entre cuentas** (pagar la tarjeta desde la cuenta corriente sin contar el gasto dos veces).
+4. **Control:** pagos recurrentes, alertas push, metas, cierre de mes con traspaso de saldos, reportes y exportar.
+5. **Asistente:** preguntas en lenguaje natural y resumen mensual.
+6. **Futuro:** conexión bancaria (Fintoc / Finanzas Abiertas CMF).
