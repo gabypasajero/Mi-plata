@@ -82,6 +82,8 @@ npm test            # lógica de negocio + documentos (tipos de archivo, Excel/C
 npm run test:db     # migración + seguridad RLS en un Postgres local desechable
 ```
 
+Pruebas de punta a punta y la **cuenta de prueba permanente**: ver [`docs/PRUEBAS.md`](docs/PRUEBAS.md).
+
 ## Estructura
 
 ```
