@@ -89,4 +89,64 @@ begin
   reset role;
 end $$;
 
+-- ───── Fase 2: documentos, archivos y aceptar movimientos ─────
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000000c', 'carla@example.com');
+
+do $$
+declare ana_h uuid; carla_h uuid; ana_acc uuid; cat uuid; imp uuid; item uuid; n int; tx_amount bigint;
+begin
+  select current_household_id into ana_h from public.profiles where id = '00000000-0000-0000-0000-00000000000a';
+  select current_household_id into carla_h from public.profiles where id = '00000000-0000-0000-0000-00000000000c';
+  select id into ana_acc from public.accounts where household_id = ana_h and type = 'efectivo';
+  select id into cat from public.categories where household_id = ana_h and name = 'Supermercado';
+
+  perform pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+  set local role authenticated;
+
+  -- Archivos: Ana sube a su carpeta, no a la de Carla
+  insert into storage.objects (bucket_id, name) values ('documentos', ana_h || '/x/boleta.jpg');
+  begin
+    insert into storage.objects (bucket_id, name) values ('documentos', carla_h || '/x/robo.jpg');
+    raise exception 'FALLO: Ana subió un archivo al hogar de Carla';
+  exception when insufficient_privilege then null;
+  end;
+
+  insert into public.imports (household_id, file_path, file_name, mime_type, size_bytes, status)
+  values (ana_h, ana_h || '/x/boleta.jpg', 'boleta.jpg', 'image/jpeg', 1000, 'por_revisar')
+  returning id into imp;
+  insert into public.import_items (household_id, import_id, date, merchant, amount, category_id)
+  values (ana_h, imp, '2026-10-20', 'Lider', -12990, cat) returning id into item;
+
+  -- Acepta corrigiendo el monto: crea el movimiento, marca el ítem y cierra el documento
+  n := public.accept_import_items(jsonb_build_array(jsonb_build_object(
+    'id', item, 'category_id', cat, 'account_id', ana_acc, 'amount', -13990)));
+  assert n = 1, 'aceptó 1 ítem: ' || n;
+  select amount into tx_amount from public.transactions where import_id = imp;
+  assert tx_amount = -13990, 'monto corregido: ' || tx_amount;
+  assert (select status from public.import_items where id = item) = 'aceptado', 'ítem aceptado';
+  assert (select status from public.imports where id = imp) = 'revisado', 'documento revisado';
+
+  -- Aceptar dos veces no duplica
+  n := public.accept_import_items(jsonb_build_array(jsonb_build_object('id', item, 'account_id', ana_acc)));
+  assert n = 0, 'no acepta dos veces';
+
+  insert into public.merchant_rules (household_id, pattern, category_id) values (ana_h, 'lider', cat);
+  reset role;
+
+  -- Carla no ve nada de Ana
+  perform pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+  set local role authenticated;
+  assert (select count(*) from public.imports) = 0, 'Carla no ve documentos ajenos';
+  assert (select count(*) from public.import_items) = 0, 'Carla no ve ítems ajenos';
+  assert (select count(*) from public.merchant_rules) = 0, 'Carla no ve reglas ajenas';
+  assert (select count(*) from storage.objects) = 0, 'Carla no ve archivos ajenos';
+  begin
+    perform public.accept_import_items(jsonb_build_array(jsonb_build_object(
+      'id', item, 'account_id', (select id from public.accounts limit 1))));
+  exception when others then null;
+  end;
+  assert (select count(*) from public.transactions) = 0, 'Carla no puede aceptar ítems ajenos';
+  reset role;
+end $$;
+
 select 'RLS OK ✅' as resultado;

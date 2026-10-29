@@ -18,7 +18,21 @@ Especificación completa: [doc "Mi Plata — Especificación"](https://claude.ai
 2. **Correo de confirmación:** el correo incluido en Supabase solo envía a miembros del equipo de Supabase. Para uso en el hogar: desactivar *Confirm email* (Authentication → Sign In / Providers → Email) o usar Google. Para vender: SMTP propio (ej. Resend) en Authentication → Emails → SMTP.
 3. **Google (opcional):** Authentication → Providers → Google con un Client ID de Google Cloud.
 
-## Estado: Fase 1 — Base ✅
+## Fase 2 — Documentos con IA ✅
+
+| Pantalla | Qué hace |
+|---|---|
+| **Subir** (`/subir`, desde + Agregar) | Arrastra, elige o toma foto de cualquier documento financiero: boletas, facturas, cartolas de tarjeta o cuenta (PDF), Excel/CSV del banco, comprobantes de transferencia, liquidaciones de sueldo, cuentas de servicios. Las fotos se achican en el teléfono y las HEIC se convierten a JPG. |
+| **Por revisar** (`/revisar`) | La IA propone los movimientos; corriges comercio, monto, fecha y categoría, eliges la cuenta y aceptas. Nada se guarda sin tu confirmación. |
+
+- **Lector:** Claude (`claude-opus-5-5`) con salida JSON validada (zod). PDF e imágenes van directo; Excel (.xlsx), CSV en UTF-8 o Latin-1, y los ".xls" que en realidad son HTML se convierten a texto. El Excel antiguo (.xls binario) pide guardarlo como .xlsx.
+- **Anti-duplicados:** mismo monto, fecha a ±3 días y comercio parecido → viene desmarcado y avisado.
+- **La app aprende:** al aceptar, guarda comercio → categoría; la próxima vez esa regla manda sobre la sugerencia de la IA.
+- **Privacidad:** archivos en un bucket privado de Supabase, en la carpeta del hogar (RLS en Storage); se abren con enlaces firmados de 60 s.
+- **Costo:** se paga por uso de la API de Claude; una boleta cuesta del orden de centavos de dólar y una cartola larga algo más.
+- **Requiere** la variable `ANTHROPIC_API_KEY` en Vercel. Sin ella, la subida funciona pero la lectura avisa que la IA no está activada.
+
+## Fase 1 — Base ✅
 
 | Pantalla | Qué hace |
 |---|---|
@@ -64,7 +78,7 @@ Importa el repo en Vercel y agrega las mismas variables de `.env.example` (con `
 ```bash
 npm run typecheck   # TypeScript
 npm run lint        # ESLint
-npm test            # lógica de negocio: pesos, fechas de Chile, registro rápido, reparto, "puedes gastar hoy"
+npm test            # lógica de negocio + documentos (tipos de archivo, Excel/CSV, duplicados, reglas)
 npm run test:db     # migración + seguridad RLS en un Postgres local desechable
 ```
 
@@ -78,6 +92,8 @@ src/lib/               lógica pura (budget, dates, money, quick-entry) + capa d
 src/app/actions.ts     Server Actions con validación
 src/app/(app)/         pantallas privadas
 src/app/login/         entrar, crear cuenta, Google
+src/lib/documents/     lectura de documentos: tipos, conversión a texto, IA, duplicados y reglas
+src/app/api/documentos procesar con IA y abrir el archivo original
 ```
 
 Stack: Next.js 16 (App Router) · React 19 · Tailwind 4 · Supabase (Postgres + Auth + RLS) · Vitest.
@@ -85,8 +101,8 @@ Stack: Next.js 16 (App Router) · React 19 · Tailwind 4 · Supabase (Postgres +
 ## Próximas fases
 
 1. ~~Base~~ ✅
-2. **IA lectora:** foto de boleta → Claude (visión) → bandeja "Por revisar"; reglas que aprenden por comercio.
-3. **Cartolas:** PDF de tarjeta y CSV/Excel del banco, cuotas, anti-duplicados. Incluye **transferencias entre cuentas** (pagar la tarjeta desde la cuenta corriente sin contar el gasto dos veces).
+2. ~~IA lectora~~ ✅ (incluye cartolas, Excel/CSV y anti-duplicados, adelantados de la Fase 3)
+3. **Transferencias entre cuentas** (pagar la tarjeta desde la cuenta corriente sin contar el gasto dos veces) y recordar el formato del Excel de cada banco.
 4. **Control:** pagos recurrentes, alertas push, metas, cierre de mes con traspaso de saldos, reportes y exportar.
 5. **Asistente:** preguntas en lenguaje natural y resumen mensual.
 6. **Futuro:** conexión bancaria (Fintoc / Finanzas Abiertas CMF).

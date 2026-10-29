@@ -217,3 +217,89 @@ export async function getMembers() {
     .eq("household_id", householdId);
   return data ?? [];
 }
+
+export type ImportDoc = {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  status: "subido" | "procesando" | "por_revisar" | "revisado" | "no_financiero" | "error";
+  doc_type: string | null;
+  issuer: string | null;
+  summary: string | null;
+  error: string | null;
+  raw_json: { monto_a_pagar?: number | null; fecha_vencimiento?: string | null } | null;
+  created_at: string;
+};
+
+export type ImportItem = {
+  id: string;
+  import_id: string;
+  position: number;
+  date: string;
+  merchant: string | null;
+  description: string | null;
+  amount: number;
+  installment: string | null;
+  category_id: string | null;
+  account_id: string | null;
+  duplicate_of: string | null;
+};
+
+const IMPORT_FIELDS = "id, file_name, mime_type, status, doc_type, issuer, summary, error, raw_json, created_at";
+
+/** Documentos con movimientos esperando revisión, con sus ítems y los posibles duplicados. */
+export async function getPendingReview() {
+  const { supabase, householdId } = await getContext();
+  const { data: docs, error } = await supabase
+    .from("imports")
+    .select(IMPORT_FIELDS)
+    .eq("household_id", householdId)
+    .eq("status", "por_revisar")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  const ids = (docs ?? []).map((d) => d.id as string);
+  if (ids.length === 0) return { docs: [] as ImportDoc[], items: [] as ImportItem[], duplicates: new Map<string, Transaction>() };
+
+  const { data: items } = await supabase
+    .from("import_items")
+    .select("id, import_id, position, date, merchant, description, amount, installment, category_id, account_id, duplicate_of")
+    .eq("household_id", householdId)
+    .eq("status", "pendiente")
+    .in("import_id", ids)
+    .order("position");
+  const duplicateIds = [...new Set((items ?? []).map((i) => i.duplicate_of).filter(Boolean))] as string[];
+  const { data: dupes } = duplicateIds.length
+    ? await supabase
+        .from("transactions")
+        .select("id, account_id, category_id, amount, date, merchant, note, installment, created_at")
+        .in("id", duplicateIds)
+    : { data: [] };
+  return {
+    docs: (docs ?? []) as ImportDoc[],
+    items: (items ?? []) as ImportItem[],
+    duplicates: new Map(((dupes ?? []) as Transaction[]).map((t) => [t.id, t])),
+  };
+}
+
+export async function getRecentImports(limit = 15): Promise<ImportDoc[]> {
+  const { supabase, householdId } = await getContext();
+  const { data } = await supabase
+    .from("imports")
+    .select(IMPORT_FIELDS)
+    .eq("household_id", householdId)
+    .neq("status", "por_revisar")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as ImportDoc[];
+}
+
+export async function countPendingReview(): Promise<number> {
+  const { supabase, householdId } = await getContext();
+  const { count } = await supabase
+    .from("import_items")
+    .select("id", { count: "exact", head: true })
+    .eq("household_id", householdId)
+    .eq("status", "pendiente");
+  return count ?? 0;
+}

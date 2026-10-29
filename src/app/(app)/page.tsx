@@ -2,19 +2,20 @@ import { ArrowRight, CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { TransactionRow } from "@/components/transaction-row";
 import { Card, EmptyState, Money, ProgressBar } from "@/components/ui";
-import { getAccounts, getCategories, getContext, getMonthSummary, getRecentTransactions } from "@/lib/data";
+import { countPendingReview, getAccounts, getCategories, getContext, getMonthSummary, getRecentTransactions } from "@/lib/data";
 import { dayLabel, daysBetween, monthLabel, monthStart, nextDueDate, todayInChile } from "@/lib/dates";
 import { formatCLP } from "@/lib/money";
 
 export default async function HomePage() {
   const today = todayInChile();
   const month = monthStart(today);
-  const [{ displayName }, summary, accounts, categories, recent] = await Promise.all([
+  const [{ displayName }, summary, accounts, categories, recent, pendingReview] = await Promise.all([
     getContext(),
     getMonthSummary(month),
     getAccounts(),
     getCategories(true),
     getRecentTransactions(5),
+    countPendingReview(),
   ]);
 
   const liquid = accounts.filter((a) => a.type === "efectivo" || a.type === "corriente");
@@ -47,6 +48,18 @@ export default async function HomePage() {
           {summary.daysLeft === 1 ? "día" : "días"} que quedan
         </p>
       </Card>
+
+      {pendingReview > 0 && (
+        <Link href="/revisar" className="flex items-center justify-between rounded-2xl border border-warning/40 bg-warning/10 px-4 py-3">
+          <span>
+            <span className="block font-semibold">
+              {pendingReview} {pendingReview === 1 ? "movimiento" : "movimientos"} por revisar
+            </span>
+            <span className="text-sm text-muted">Leídos de tus documentos, esperando tu confirmación</span>
+          </span>
+          <ArrowRight className="size-5" />
+        </Link>
+      )}
 
       {summary.toAssign > 0 && (
         <Link href="/presupuesto" className="flex items-center justify-between rounded-2xl bg-brand-soft px-4 py-3 text-brand-strong">
