@@ -4,6 +4,20 @@ App web instalable (PWA) de finanzas personales y del hogar: registras lo que ga
 
 Especificación completa: [doc "Mi Plata — Especificación"](https://claude.ai/artifact/8SN7trCGMDUotUiFHBYsJF).
 
+**App en vivo:** https://mi-plata-nu.vercel.app
+
+## Infraestructura
+
+| Pieza | Dónde | Notas |
+|---|---|---|
+| Base de datos + login | Supabase, proyecto `mi-plata` (São Paulo) | Migraciones de `supabase/migrations/` aplicadas |
+| App | Vercel, equipo DeTodito, proyecto `mi-plata` | Funciones en São Paulo (`gru1`), junto a la base |
+
+### Pendiente en paneles (no se puede hacer por API)
+1. **Supabase → Authentication → URL Configuration:** *Site URL* = `https://mi-plata-nu.vercel.app`; *Redirect URLs*: `https://mi-plata-nu.vercel.app/auth/callback` y `http://localhost:3000/auth/callback`.
+2. **Correo de confirmación:** el correo incluido en Supabase solo envía a miembros del equipo de Supabase. Para uso en el hogar: desactivar *Confirm email* (Authentication → Sign In / Providers → Email) o usar Google. Para vender: SMTP propio (ej. Resend) en Authentication → Emails → SMTP.
+3. **Google (opcional):** Authentication → Providers → Google con un Client ID de Google Cloud.
+
 ## Estado: Fase 1 — Base ✅
 
 | Pantalla | Qué hace |
